@@ -5,12 +5,16 @@
 #include <cmath>
 #include <iostream>
 #include <sstream>
+#include <filesystem>
 #include <fstream>
 #include <iomanip>
 
+// Declaración de variables globales
+// Pantalla
 const int WIDTH = 640;
 const int HEIGHT = 480;
 
+// Parámetros de la cámara
 const float FOV = 90.0f;
 const float NEAR_PLANE = 0.1f;
 const float FAR_PLANE = 10.0f;
@@ -21,6 +25,14 @@ struct Shape {
     float x, y, z;
     float vx, vy, vz;
     float r, g, b;
+    bool active;
+    Shape(): active(true) {}
+
+    void changeColor() {
+        this->r = static_cast<float>(rand()) / RAND_MAX;
+        this->g = static_cast<float>(rand()) / RAND_MAX;
+        this->b = static_cast<float>(rand()) / RAND_MAX;
+    }
 };
 
 std::vector<Shape> shapes;
@@ -48,6 +60,8 @@ void drawShape(const Shape &shape) {
 }
 
 void updateShape(Shape &shape, float dt) {
+    if(!shape.active) return;
+
     shape.x += shape.vx * dt;
     shape.y += shape.vy * dt;
     shape.z += shape.vz * dt;
@@ -83,7 +97,7 @@ void updateShape(Shape &shape, float dt) {
 
     // Check for collisions with other shapes in 3D space
     for (auto &other : shapes) {
-        if (&shape == &other) continue;
+        if (&shape == &other or !other.active) continue;
 
         float dx = shape.x - other.x;
         float dy = shape.y - other.y;
@@ -105,6 +119,14 @@ void updateShape(Shape &shape, float dt) {
             std::swap(shape.vx, other.vx);
             std::swap(shape.vy, other.vy);
             std::swap(shape.vz, other.vz);
+
+            // Delete one of the shapes with a small probability or change its color
+            float p = static_cast<float>(rand()) / RAND_MAX;
+            if (p < 0.05f) {
+                shape.active = false;
+            } else if (p < 0.01f) {
+                shape.changeColor();
+            }
         }
     }
 }
@@ -139,7 +161,9 @@ std::string getCurrentTimeAsString() {
 
 // Función para guardar los tiempos de los frames en un archivo CSV
 void saveFrameTimesToCSV(const std::vector<double>& frameTimes, int shapeCount) {
-    std::string fileName = getCurrentTimeAsString() + "-" + std::to_string(shapeCount) + ".csv";
+    std::filesystem::create_directory("logs");
+    
+    std::string fileName = "logs/" + getCurrentTimeAsString() + "-" + std::to_string(shapeCount) + ".csv";
     std::ofstream outFile(fileName);
     if (outFile.is_open()) {
         outFile << "Frame Time (s)\n";
@@ -216,8 +240,16 @@ int main(int argc, char** argv) {
         startTime = glfwGetTime();
 
         for (auto &shape : shapes) {
-            updateShape(shape, dt);
-            drawShape(shape);
+            if (shape.active) {
+                drawShape(shape);
+                updateShape(shape, dt);
+            } else {
+                float p = static_cast<float>(rand()) / RAND_MAX;
+                if (p < 0.1) {
+                    shape.active = true;
+                    shape.changeColor();
+                }
+            }
         }
 
         endTime = glfwGetTime();
