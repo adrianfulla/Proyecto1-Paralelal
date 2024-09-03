@@ -5,6 +5,8 @@
 #include <cmath>
 #include <iostream>
 #include <sstream>
+#include <fstream>
+#include <iomanip>
 
 const int WIDTH = 640;
 const int HEIGHT = 480;
@@ -22,6 +24,7 @@ struct Shape {
 };
 
 std::vector<Shape> shapes;
+std::vector<double> frameTimes;
 
 void applyPerspective(float &x, float &y, float z) {
     float fovFactor = 1.0f / tanf(FOV * 0.5f * (M_PI / 180.0f));
@@ -125,6 +128,32 @@ void generateShapes(int N) {
     }
 }
 
+// Función para obtener la hora actual como una cadena
+std::string getCurrentTimeAsString() {
+    std::time_t now = std::time(nullptr);
+    std::tm* localTime = std::localtime(&now);
+    std::ostringstream ss;
+    ss << std::put_time(localTime, "%Y-%m-%d_%H-%M-%S");
+    return ss.str();
+}
+
+// Función para guardar los tiempos de los frames en un archivo CSV
+void saveFrameTimesToCSV(const std::vector<double>& frameTimes, int shapeCount) {
+    std::string fileName = getCurrentTimeAsString() + "-" + std::to_string(shapeCount) + ".csv";
+    std::ofstream outFile(fileName);
+    if (outFile.is_open()) {
+        outFile << "Frame Time (s)\n";
+        for (const auto& time : frameTimes) {
+            outFile << time << "\n";
+        }
+        outFile.close();
+        std::cout << "Frame times saved to " << fileName << "\n";
+    } else {
+        std::cerr << "Failed to open file for writing: " << fileName << "\n";
+    }
+}
+
+
 int main(int argc, char** argv) {
     if (argc < 2) {
         std::cerr << "Usage: " << argv[0] << " <number_of_shapes>\n";
@@ -160,6 +189,7 @@ int main(int argc, char** argv) {
 
     double previousTime = glfwGetTime();
     double lastTime = previousTime;
+    double startTime, endTime;
     int frameCount = 0;
 
     // Main loop
@@ -183,10 +213,16 @@ int main(int argc, char** argv) {
 
         glClear(GL_COLOR_BUFFER_BIT);
 
+        startTime = glfwGetTime();
+
         for (auto &shape : shapes) {
             updateShape(shape, dt);
             drawShape(shape);
         }
+
+        endTime = glfwGetTime();
+
+        frameTimes.push_back(endTime - startTime);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
@@ -194,5 +230,8 @@ int main(int argc, char** argv) {
 
     glfwDestroyWindow(window);
     glfwTerminate();
+
+    saveFrameTimesToCSV(frameTimes, N);
+
     return 0;
 }
