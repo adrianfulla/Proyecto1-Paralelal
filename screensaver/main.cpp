@@ -128,6 +128,7 @@ void generateShapes(int N) {
     }
 }
 
+// Función para obtener la hora actual como una cadena
 std::string getCurrentTimeAsString() {
     std::time_t now = std::time(nullptr);
     std::tm* localTime = std::localtime(&now);
@@ -136,6 +137,7 @@ std::string getCurrentTimeAsString() {
     return ss.str();
 }
 
+// Función para guardar los tiempos de los frames en un archivo CSV
 void saveFrameTimesToCSV(const std::vector<double>& frameTimes, int shapeCount) {
     std::string fileName = getCurrentTimeAsString() + "-" + std::to_string(shapeCount) + ".csv";
     std::ofstream outFile(fileName);
@@ -150,6 +152,7 @@ void saveFrameTimesToCSV(const std::vector<double>& frameTimes, int shapeCount) 
         std::cerr << "Failed to open file for writing: " << fileName << "\n";
     }
 }
+
 
 int main(int argc, char** argv) {
     if (argc < 2) {
@@ -186,9 +189,8 @@ int main(int argc, char** argv) {
 
     double previousTime = glfwGetTime();
     double lastTime = previousTime;
-    int frameCount = 0;
-
     double startTime, endTime;
+    int frameCount = 0;
 
     // Main loop
     while (!glfwWindowShouldClose(window)) {
@@ -200,6 +202,7 @@ int main(int argc, char** argv) {
         if (currentTime - lastTime >= 1.0) {
             double fps = double(frameCount) / (currentTime - lastTime);
 
+            // Update window title with FPS
             std::ostringstream ss;
             ss << "OpenGL 3D Screensaver - FPS: " << fps;
             glfwSetWindowTitle(window, ss.str().c_str());
@@ -211,10 +214,12 @@ int main(int argc, char** argv) {
         glClear(GL_COLOR_BUFFER_BIT);
 
         startTime = glfwGetTime();
+
         for (auto &shape : shapes) {
             updateShape(shape, dt);
             drawShape(shape);
         }
+
         endTime = glfwGetTime();
 
         frameTimes.push_back(endTime - startTime);
@@ -227,5 +232,6 @@ int main(int argc, char** argv) {
     glfwTerminate();
 
     saveFrameTimesToCSV(frameTimes, N);
+
     return 0;
 }
