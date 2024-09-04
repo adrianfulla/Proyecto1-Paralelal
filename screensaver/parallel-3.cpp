@@ -152,29 +152,32 @@ void updateShape(Shape &shape, float dt) {
         float dz = shape.z - other.z;
         float dist = sqrt(dx * dx + dy * dy + dz * dz); // Distancia entre las figuras
         if (dist < shape.radius + other.radius) {
-            // Un overlap simple para separar las figuras
-            float overlap = 0.5f * (dist - shape.radius - other.radius);
+            #pragma omp critical
+            {
+                // Un overlap simple para separar las figuras
+                float overlap = 0.5f * (dist - shape.radius - other.radius);
 
-            // Separar las figuras para evitar que se superpongan
-            shape.x -= overlap * (dx) / dist;
-            shape.y -= overlap * (dy) / dist;
-            shape.z -= overlap * (dz) / dist;
-            other.x += overlap * (dx) / dist;
-            other.y += overlap * (dy) / dist;
-            other.z += overlap * (dz) / dist;
+                // Separar las figuras para evitar que se superpongan
+                shape.x -= overlap * (dx) / dist;
+                shape.y -= overlap * (dy) / dist;
+                shape.z -= overlap * (dz) / dist;
+                other.x += overlap * (dx) / dist;
+                other.y += overlap * (dy) / dist;
+                other.z += overlap * (dz) / dist;
 
-            // Intercambiar velocidades
-            std::swap(shape.vx, other.vx);
-            std::swap(shape.vy, other.vy);
-            std::swap(shape.vz, other.vz);
+                // Intercambiar velocidades
+                std::swap(shape.vx, other.vx);
+                std::swap(shape.vy, other.vy);
+                std::swap(shape.vz, other.vz);
 
-            // Cambiar color o cambiar la velocidad de rotación de la figura con una probabilidad
-            float p = static_cast<float>(rand()) / RAND_MAX;
-            if (p < 0.1f) {
-                shape.rotationSpeed = 70.0f * (static_cast<float>(rand()) / RAND_MAX);
-            }
-            if (p < 0.05f) {
-                shape.changeColor();
+                // Cambiar color o cambiar la velocidad de rotación de la figura con una probabilidad
+                float p = static_cast<float>(rand()) / RAND_MAX;
+                if (p < 0.1f) {
+                    shape.rotationSpeed = 70.0f * (static_cast<float>(rand()) / RAND_MAX);
+                }
+                if (p < 0.05f) {
+                    shape.changeColor();
+                }
             }
         }
     }
