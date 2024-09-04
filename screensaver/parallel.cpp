@@ -143,6 +143,7 @@ void updateShape(Shape &shape, float dt) {
     }
 
     // Verificación de colisiones entre figuras
+    #pragma omp parallel for
     for (auto &other : shapes) {
         if (&shape == &other) continue; // No se verifica la colisión con la misma figura
 
