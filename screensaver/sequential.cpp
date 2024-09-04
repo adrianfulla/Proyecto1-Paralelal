@@ -1,3 +1,12 @@
+/**
+ * @file sequential.cpp
+ * @author Adrian Fulladolsa
+ * @brief Implementación de un screensaver de figuras geométricas utilizando OpenGL y GLFW
+ * @date 03-09-2004
+ * 
+ * 
+ */
+
 #include <GLFW/glfw3.h>
 #include <vector>
 #include <cstdlib>
@@ -16,18 +25,21 @@ const int HEIGHT = 480;
 
 // Parámetros de la cámara
 const float FOV = 90.0f;
-const float NEAR_PLANE = 0.1f;
+const float NEAR_PLANE = 0.1f; // Distancias de los planos
 const float FAR_PLANE = 10.0f;
 
+// Estructura para una figura
 struct Shape {
-    int sides;
-    float radius;
-    float x, y, z;
-    float vx, vy, vz;
-    float r, g, b;
-    bool active;
-    Shape(): active(true) {}
+    int sides; // Número de lados de la figura
+    float radius; // Radio de la figura
+    float x, y, z; // Posición de la figura
+    float vx, vy, vz; // Velocidad de la figura en cada eje
+    float rX, rY, rZ; // Rotación de la figura en cada eje
+    float rotationSpeed; // Velocidad de rotación de la figura
+    float r, g, b; // Color de la figura
+    Shape(): rX(0.0f), rY(0.0f), rZ(0.0f), rotationSpeed(0.0f) {} // Constructor por defecto
 
+    // Función para cambiar el color de la figura
     void changeColor() {
         this->r = static_cast<float>(rand()) / RAND_MAX;
         this->g = static_cast<float>(rand()) / RAND_MAX;
@@ -35,9 +47,19 @@ struct Shape {
     }
 };
 
-std::vector<Shape> shapes;
-std::vector<double> frameTimes;
+std::vector<Shape> shapes; // Vector en el que se almacenan las figuras
+std::vector<double> frameTimes; // Vector en el que se almacenan los tiempos de los frames
 
+
+/*
+    *** Funciones para dibujar y actualizar las figuras ***
+    * generateShapes: Genera figuras aleatorias y las almacena en el vector shapes
+    * drawShape: Dibuja una figura en la pantalla
+    * applyPerspective: Aplica la perspectiva a una figura
+    * updateShape: Actualiza la posición de una figura
+*/
+
+// Función para aplicar la perspectiva a una figura
 void applyPerspective(float &x, float &y, float z) {
     float fovFactor = 1.0f / tanf(FOV * 0.5f * (M_PI / 180.0f));
     x *= fovFactor / z;
@@ -45,7 +67,12 @@ void applyPerspective(float &x, float &y, float z) {
 }
 
 void drawShape(const Shape &shape) {
-    glBegin(GL_POLYGON);
+    glPushMatrix(); // Se agrega una matriz para la figura, con la que se puede rotar y trasladar el objeto
+    glRotatef(shape.rX, 1.0f, 0.0f, 0.0f);
+    glRotatef(shape.rY, 0.0f, 1.0f, 0.0f);
+    glRotatef(shape.rZ, 0.0f, 0.0f, 1.0f);
+
+    glBegin(GL_POLYGON); // Se inicia un dibujo de un polígono
     glColor3f(shape.r, shape.g, shape.b);
 
     for (int i = 0; i < shape.sides; ++i) {
@@ -56,17 +83,35 @@ void drawShape(const Shape &shape) {
         applyPerspective(px, py, pz);
         glVertex2f(px, py);
     }
-    glEnd();
+    glEnd(); // Se finaliza el dibujo del polígono
+
+    glPopMatrix(); // Se saca de la pila la matriz de la figura dibujada
 }
 
+// Función para actualizar los componentes de una figura
 void updateShape(Shape &shape, float dt) {
-    if(!shape.active) return;
-
+    // Movimiento de la figura según su velocidad y un tiempo delta
     shape.x += shape.vx * dt;
     shape.y += shape.vy * dt;
     shape.z += shape.vz * dt;
 
-    // Border Collision Handling in 3D
+    // Rotación de la figura según su velocidad de rotación y un tiempo delta
+    shape.rX += shape.rotationSpeed * dt;
+    shape.rY += shape.rotationSpeed * dt;
+    shape.rZ += shape.rotationSpeed * dt;
+
+    // Si una figura llega a un ángulo de rotación múltiplo de 90 grados, se le suma 1 grado para evitar que "desaparezca"
+    if (fmod(shape.rX, 90.0f) < 1.0f) {
+        shape.rX += 1.0f;
+    }
+    if (fmod(shape.rY, 90.0f) < 1.0f) {
+        shape.rY += 1.0f;
+    }
+    if (fmod(shape.rZ, 90.0f) < 1.0f) {
+        shape.rZ += 1.0f;
+    }
+
+    // Manejo de colisiones con los bordes de la pantalla
     float projectedRadiusX = shape.radius / shape.z;
     float projectedRadiusY = shape.radius / shape.z;
 
@@ -95,19 +140,19 @@ void updateShape(Shape &shape, float dt) {
         shape.vz *= -1;
     }
 
-    // Check for collisions with other shapes in 3D space
+    // Verificación de colisiones entre figuras
     for (auto &other : shapes) {
-        if (&shape == &other or !other.active) continue;
+        if (&shape == &other) continue; // No se verifica la colisión con la misma figura
 
         float dx = shape.x - other.x;
         float dy = shape.y - other.y;
         float dz = shape.z - other.z;
-        float dist = sqrt(dx * dx + dy * dy + dz * dz);
+        float dist = sqrt(dx * dx + dy * dy + dz * dz); // Distancia entre las figuras
         if (dist < shape.radius + other.radius) {
-            // Simple elastic collision response in 3D
+            // Un overlap simple para separar las figuras
             float overlap = 0.5f * (dist - shape.radius - other.radius);
 
-            // Separate the shapes so they don't overlap
+            // Separar las figuras para evitar que se superpongan
             shape.x -= overlap * (dx) / dist;
             shape.y -= overlap * (dy) / dist;
             shape.z -= overlap * (dz) / dist;
@@ -115,36 +160,39 @@ void updateShape(Shape &shape, float dt) {
             other.y += overlap * (dy) / dist;
             other.z += overlap * (dz) / dist;
 
-            // Swap velocities in 3D
+            // Intercambiar velocidades
             std::swap(shape.vx, other.vx);
             std::swap(shape.vy, other.vy);
             std::swap(shape.vz, other.vz);
 
-            // Delete one of the shapes with a small probability or change its color
+            // Cambiar color o cambiar la velocidad de rotación de la figura con una probabilidad
             float p = static_cast<float>(rand()) / RAND_MAX;
+            if (p < 0.1f) {
+                shape.rotationSpeed = 70.0f * (static_cast<float>(rand()) / RAND_MAX);
+            }
             if (p < 0.05f) {
-                shape.active = false;
-            } else if (p < 0.01f) {
                 shape.changeColor();
             }
         }
     }
 }
 
+// Función para generar figuras aleatorias
 void generateShapes(int N) {
-    shapes.clear();
+    shapes.clear(); // Se limpia el vector de figuras
     for (int i = 0; i < N; ++i) {
-        Shape shape;
-        shape.sides = rand() % 3 + 3; // Generate between 3 and 5 sides
-        shape.radius = 0.05f + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / 0.1f));
-        shape.x = -1.0f + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / 2.0f));
-        shape.y = -1.0f + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / 2.0f));
-        shape.z = NEAR_PLANE + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / (FAR_PLANE - NEAR_PLANE)));
-        shape.vx = 0.5f * (static_cast<float>(rand()) / RAND_MAX - 0.5f);
-        shape.vy = 0.5f * (static_cast<float>(rand()) / RAND_MAX - 0.5f);
-        shape.vz = 0.5f * (static_cast<float>(rand()) / RAND_MAX - 0.5f);
+        Shape shape; // Se crea una figura
+        shape.sides = rand() % 3 + 3; // Genera una cantidad de lados entre 3 y 5 que determina el tipo de figura
+        shape.radius = 0.05f + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / 0.1f)); // Genera un radio que determina el tamaño de la figura
+        shape.x = -1.0f + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / 2.0f)); // Genera una posición en x
+        shape.y = -1.0f + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / 2.0f)); // Genera una posición en y
+        shape.z = NEAR_PLANE + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / (FAR_PLANE - NEAR_PLANE))); // Genera una posición en z
+        shape.vx = 0.5f * (static_cast<float>(rand()) / RAND_MAX - 0.5f); // Genera una velocidad en x
+        shape.vy = 0.5f * (static_cast<float>(rand()) / RAND_MAX - 0.5f); // Genera una velocidad en y
+        shape.vz = 0.5f * (static_cast<float>(rand()) / RAND_MAX - 0.5f); // Genera una velocidad en z
+        // Genera un color aleatorio para la figura
         shape.r = static_cast<float>(rand()) / RAND_MAX;
-        shape.g = static_cast<float>(rand()) / RAND_MAX;
+        shape.g = static_cast<float>(rand()) / RAND_MAX; 
         shape.b = static_cast<float>(rand()) / RAND_MAX;
         shapes.push_back(shape);
     }
@@ -184,18 +232,19 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-    int N = std::atoi(argv[1]);
+    int N = std::atoi(argv[1]); // Número de figuras
     if (N <= 0) {
         std::cerr << "Number of shapes must be greater than 0.\n";
         return -1;
     }
 
-    // Initialize GLFW
+    // Inicializar GLFW
     if (!glfwInit()) {
         std::cerr << "Failed to initialize GLFW\n";
         return -1;
     }
 
+    // Crear ventana
     GLFWwindow* window = glfwCreateWindow(WIDTH, HEIGHT, "OpenGL 3D Screensaver", nullptr, nullptr);
     if (!window) {
         std::cerr << "Failed to create GLFW window\n";
@@ -203,20 +252,23 @@ int main(int argc, char** argv) {
         return -1;
     }
 
+    // Configurar OpenGL
     glfwMakeContextCurrent(window);
-    glfwSwapInterval(1); // Enable vsync
+    glfwSwapInterval(1); // Habilita vsync
+    glDisable(GL_CULL_FACE); // Deshabilita el culling de caras
 
-    // Seed random number generator
+    // Crea un generador de números aleatorios
     std::srand(static_cast<unsigned int>(std::time(nullptr)));
 
     generateShapes(N);
 
+    // Variables para medir el tiempo de los frames
     double previousTime = glfwGetTime();
     double lastTime = previousTime;
     double startTime, endTime;
     int frameCount = 0;
 
-    // Main loop
+    // Bucle principal
     while (!glfwWindowShouldClose(window)) {
         double currentTime = glfwGetTime();
         float dt = static_cast<float>(currentTime - previousTime);
@@ -226,7 +278,7 @@ int main(int argc, char** argv) {
         if (currentTime - lastTime >= 1.0) {
             double fps = double(frameCount) / (currentTime - lastTime);
 
-            // Update window title with FPS
+            // Actualizar el título de la ventada con los FPS actuales
             std::ostringstream ss;
             ss << "OpenGL 3D Screensaver - FPS: " << fps;
             glfwSetWindowTitle(window, ss.str().c_str());
@@ -235,31 +287,25 @@ int main(int argc, char** argv) {
             lastTime = currentTime;
         }
 
-        glClear(GL_COLOR_BUFFER_BIT);
+        glClear(GL_COLOR_BUFFER_BIT); // Limpia el buffer de color
 
-        startTime = glfwGetTime();
+        startTime = glfwGetTime(); // Se mide el tiempo de inicio del frame
 
         for (auto &shape : shapes) {
-            if (shape.active) {
-                drawShape(shape);
-                updateShape(shape, dt);
-            } else {
-                float p = static_cast<float>(rand()) / RAND_MAX;
-                if (p < 0.1) {
-                    shape.active = true;
-                    shape.changeColor();
-                }
-            }
+            drawShape(shape);
+            updateShape(shape, dt);
         }
 
-        endTime = glfwGetTime();
+        endTime = glfwGetTime(); // Se mide el tiempo de fin del frame
 
-        frameTimes.push_back(endTime - startTime);
+        frameTimes.push_back(endTime - startTime); // Se almacena el tiempo del frame
 
+        // Intercambia los buffers y procesa los eventos
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
 
+    // Destruir la ventana y terminar GLFW
     glfwDestroyWindow(window);
     glfwTerminate();
 
