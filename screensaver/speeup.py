@@ -26,7 +26,9 @@ if __name__ == "__main__":
     parallelAvg = average(parallelTimes)
 
     speedup = speedup(sequentialAvg, parallelAvg)
+    efficiency = speedup / 4
 
     print(f"Tiempo promedio secuencial: {sequentialAvg:.6f}s")
     print(f"Tiempo promedio paralelo: {parallelAvg:.6f}s")
     print(f"Speedup: {speedup:.2f}")
+    print(f"Efficiency: {efficiency:.2f}")
